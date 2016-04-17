@@ -1,0 +1,161 @@
+#NoTrayIcon
+#include <Excel.au3>
+#include <Inet.au3>
+#include <MsgBoxConstants.au3>
+ 
+Const $u="easy-SKB KorrekturUpdate 160414"
+Const $n="SKB-Einzelerfassung"
+const $x=".xls"
+Const $f="Fehler "
+ 
+ 
+update()
+ 
+ 
+Func update()
+Opt("MustDeclareVars",1)
+Opt("WinTitleMatchMode",2)
+Opt("SendKeyDownDelay",0)
+Opt("SendKeyDelay",50)
+ 
+Const $a="Auswahl Jahr"
+Const $p="Apr"
+Const $c="A1"
+Const $ia=30;Aktions-Anzahl für Abbruch, falls Eintrag nicht gefunden
+Global $r,$e=ObjEvent($u,"ErrFunc")
+Local $i,$j,$k,$l,$m,$o,$t
+ 
+If WinGetHandle($n&$x) Then
+   MsgBox($MB_SYSTEMMODAL+$MB_ICONWARNING,$u,"Bitte schließen Sie zunächst das Programm '"&$n&"' unnd starten Sie danach das Update erneut!")
+   Exit
+EndIf
+ 
+While $k+$l<2
+   ProgressOn("© easy-soft GmbH Dresden",$u,"wird ausgeführt...")
+   If show($n,@ScriptDir&"\"&$n&$x,-1) Then ExitLoop
+   If show($a,"",2)=0 Then;Jahresauswahl angezeigt?
+	  Send(($k?"{TAB}{END}{TAB 2}{ENTER 3}":"{ENTER}"))
+    Else
+	  $l=1;dadurch Exit nach Ende dieses Durchlaufs (vorhergehendes Jahr nicht mehr auswählbar)
+   EndIf
+   if sendUntilShow("{ENTER}",xl($k)) Then ExitLoop;zusätzliche Warnmeldungen der Excel-Makros quittieren
+   $o=_Excel_Open()
+   With $o
+	  .ScreenUpdating=False
+	  .Range($c).Activate
+	  Send("!{F11}!ax{TAB}{HOME}")
+	  if sendUntilShow("{DOWN}",xl($k)) Then ExitLoop
+	  Send("{RIGHT}")
+	  If login("anja marco","Projekt gesperrt") Then ExitLoop
+	  do
+		 show("[CLASS:wndclass_desked_gsk]","",2)
+		 Send(($i?"":"{RIGHT 2}")&"{DOWN}+{F10}o")
+		 .Range($c).Activate
+		 $t=.ActiveSheet.Name
+		 $i+=1
+		 $j=$j&@CRLF&$i&": "&$t
+		 ProgressSet(10*$i)
+	  until $t=$p or $i=$ia
+	  if $i<$ia Then
+		 .ActiveSheet.Shapes("Schaltfläche 4").Select
+		 Send("+{F10}w'"&xl($k)&"'{!}Modul_VonEinzelNachMonat.FrageUebernahmeEnachM_04{ENTER}")
+	   Else
+		 errStr($f&": Seite '"&$p&"' nicht gefunden beim Durchlaufen von"&@CRLF&$j)
+	  EndIf
+	  $i=0
+	  ProgressSet(100)
+	  .ScreenUpdating=True
+	  .Quit
+   EndWith
+   If show($n,"",0) Then ExitLoop
+   $k+=1
+WEnd
+ 
+$m="Das Update '"&$u&"' endete mit "&(($r="")?"Erfolg":"einem Fehler")&"."&cr()
+MsgBox($MB_SYSTEMMODAL+$MB_ICONINFORMATION,$u,$m&((_INetMail("hotmail@easy-soft.de",$u&" ("&(($r="")?"erfolgreich":"fehlerhaft")&")",$m&$r))?"Bitte senden Sie die angezeigte Quittungs-Mail an easy-soft!":""))
+EndFunc
+ 
+ 
+Func login($pwd,$failMsg)
+Local $i=1,$a=StringSplit($pwd," ")
+While $i<=$a[0]
+   Send($a[$i]&"{ENTER}")
+   if show($failMsg,"",3) Then ExitLoop;Erfolg
+   Send("{ESC}")
+   $i+=1
+WEnd
+if $i>$a[0] then
+   errStr("Kennwort-Fehler")
+   Return True
+EndIf
+EndFunc
+ 
+ 
+Func show($title,$prg,$open)
+Local $i,$o=Abs($open)
+Local $n=(($o=3)?1:30);auf Fehlermeldung ($o=3) nur 1 Sekunde warten, sonst 30
+if $open<0 or($o>0 and not WinExists($title))Then ShellExecute($prg);aufrufen, bei negativem '$open' neue Instanz
+While $i<$n and(($o>0 and not WinExists($title))or($o=0 and WinExists($title)));warten, bis geöffnet/geschlossen
+   $i+=1
+   pause()
+WEnd
+if $o<3 And $i=$n Then
+   errStr("Fehler beim "&($open?"Oeffn":"Schliess")&"en von '"&$title&"'")
+   Return True
+EndIf
+if WinExists($title) or $o=3 Then
+   if $prg Then WinSetState($title,"",@SW_MAXIMIZE);maximieren
+   if $o>1 Then;aktivieren
+	  WinActivate($title)
+	  $i=0
+	  While $i<$n and WinActive($title)=0
+		 $i+=1
+		 pause()
+	  WEnd
+	  if $i=$n Then
+		 if $o<3 Then errStr("Fehler beim Aktivieren von '"&$title&"'")
+		 Return True
+	  EndIf
+   EndIf
+EndIf
+EndFunc
+ 
+ 
+Func sendUntilShow($k,$s)
+Local $i,$n=20
+While $i<$n and WinActive($s)=0
+   $i+=1
+   Send($k)
+WEnd
+if $i=$n Then
+   errStr("Fenster '"&$s&"' kann nicht angezeigt werden")
+   Return True
+EndIf
+EndFunc
+ 
+ 
+Func xl($k)
+Return $n&($k?"_"&@YEAR-1:"")&$x
+EndFunc
+ 
+ 
+Func cr()
+Return @CRLF&@CRLF
+EndFunc
+ 
+ 
+Func pause()
+Sleep(1000)
+EndFunc
+ 
+ 
+Func errStr($n)
+$r=$r&($r?cr():"")&$n
+Return $r
+EndFunc
+ 
+ 
+Func errFunc()
+Msgbox($MB_SYSTEMMODAL+$MB_ICONWARNING,$u,errStr($f&$e.number&": "&$e.windescription))
+Endfunc
+
