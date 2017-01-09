@@ -1,0 +1,26 @@
+Private Sub successMail(adr$, info$)
+    Dim noOutlookProfile%, MapiSession As Object, MapiMessage As Object
+    
+    noOutlookProfile = True
+    On Error Resume Next
+    Set MapiSession = CreateObject("Outlook.Application")
+    noOutlookProfile = MapiSession.DefaultProfileName = ""
+    On Error GoTo 0
+    
+    If noOutlookProfile Then
+        MsgBox "Bitte informieren Sie  " & adr & "  über die Erledigung!", , info
+      Else
+        With MapiSession
+          .GetNamespace("MAPI").Logon , , , False
+          Set MapiMessage = .CreateItem(0)
+          With MapiMessage
+            .to = adr
+            .Subject = "Erledigungs-Meldung:  " & info & "  abgeschlossen"
+            .Body = "Das  " & info & "  wurde durchgeführt." & vbCrLf & vbCrLf & _
+                    "Falls dabei  Fehler/Probleme/Fragen  auftraten, diese bitte hierunter vermerken:" & vbCrLf & vbCrLf & "_"
+            .display
+          End With
+        End With
+    End If
+    
+End Sub
